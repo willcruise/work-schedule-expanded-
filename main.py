@@ -261,6 +261,18 @@ def maketable1(workers, dutytypes, calen):
 
 def maketable2(workers, dutytypes, calen):
   
+  tables = []
+  row = len(workers)
+  col = monthrange
+  #initialize table for alloting workers
+  for d in dutytypes:
+    tables.append(np.zeros((row, col), dtype = np.int8))
+
+  
+
+
+
+
 
 
 #dutytypes for op
@@ -323,7 +335,6 @@ def modifycalcq(calendraft, dutytypes):
 calencq = modifycalcq(calen, dutytypescq)
 #table for operators
 tablecq = maketable1(workerscq, dutytypescq, calen)
-
 
 
 
