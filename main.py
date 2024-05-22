@@ -92,7 +92,7 @@ dayoffs = input()
 #process the dayoff string to necessary form
 def processdayoff(dayoffs):
   dayoffs = dayoffs.replace(' ', '').split(':')
-  
+
   if dayoffs != ['']:
     for ind in range(len(dayoffs)):
       dayoffs[ind] = dayoffs[ind].split(',')
@@ -142,13 +142,13 @@ def maketable1(workers, dutytypes, calen):
       if dutytypes[c] == calen[r+1][2] :
         dayanddutytype[r, c] = 1
 
-  #utility: match workers and column
+  #match workers and column
   wmatch = {}
   for i in range(len(workers)):
     wmatch[i] = workers[i]
     wmatch[workers[i]] = i
 
-  #utility: match dutytype and index(column)
+  #match dutytype and index(column)
   dmatch = {}
   for i in range(len(dutytypes)):
     dmatch[i] = dutytypes[i]
@@ -190,10 +190,10 @@ def maketable1(workers, dutytypes, calen):
     #get weightstate of table; weightstate is a indicater for
     #checking the amount of work done to date by each worker
     weightstate = genweightstate(table)
-  
-    #rows(workers) that are not excluded by dayoffs 
+
+    #rows(workers) that are not excluded by dayoffs
     availablerows = len(weightstate)
-  
+
     #concern dayoffs : set data value of the dayoff worker(row) to 128(large)
     for w in dayoffs[col+1]:
       r = wmatch[w]
@@ -253,22 +253,44 @@ def maketable1(workers, dutytypes, calen):
 
     print('<schedule log>')
     for w in log:
-      print(w, ':', log[w]) 
+      print(w, ':', log[w])
 
-  schedulelog(table)    
+  schedulelog(table)
 
   return table
 
 def maketable2(workers, dutytypes, calen):
-  
+
+  #tables by duty
   tables = []
+  
   row = len(workers)
   col = monthrange
   #initialize table for alloting workers
   for d in dutytypes:
     tables.append(np.zeros((row, col), dtype = np.int8))
-
   
+  dayanddutytype = np.ones((monthrange, 1))
+
+  #match workers and column
+  wmatch = {}
+  for i in range(len(workers)):
+    wmatch[i] = workers[i]
+    wmatch[workers[i]] = i
+
+  #match dutytype and index(column)
+  dmatch = {}
+  for i in range(len(dutytypes)):
+    dmatch[i] = dutytypes[i]
+    dmatch[dutytypes[i]] = i
+
+  #generate weightstate of each column(worker) of table
+  def genweightstate(table):
+    weightstate = np.matmul(table, dayanddutytype)
+
+    return weightstate
+
+
 
 
 
