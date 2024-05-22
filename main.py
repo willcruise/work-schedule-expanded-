@@ -133,7 +133,6 @@ def maketable1(workers, dutytypes, calen):
   #initialize table for alloting workers
   row = len(workers)
   col = monthrange
-  inittable = np.zeros((row, col), dtype = np.int8)
 
   #initialize table for matching dutytype for each days
   dayanddutytype = np.zeros((monthrange, len(dutytypes)))
@@ -186,10 +185,10 @@ def maketable1(workers, dutytypes, calen):
     else: return -1
 
   #allot worker to table of column
-  def allotworker(table, col):
+  def allotworker(tabledraft, col):
     #get weightstate of table; weightstate is a indicater for
     #checking the amount of work done to date by each worker
-    weightstate = genweightstate(table)
+    weightstate = genweightstate(tabledraft)
 
     #rows(workers) that are not excluded by dayoffs
     availablerows = len(weightstate)
@@ -204,8 +203,8 @@ def maketable1(workers, dutytypes, calen):
     # exclude previous worker row from weightstate if rows are more than one
     if availablerows > 1:
       previousworker = -1
-      for r in range(len(table)):
-        if table[r, col-1] == 1:
+      for r in range(len(tabledraft)):
+        if tabledraft[r, col-1] == 1:
           previousworker = r
           break
 
@@ -217,10 +216,10 @@ def maketable1(workers, dutytypes, calen):
     candidates = getmins(weightstate, calen[col+1][2])
 
     #pick one worker which the day of latest work is farthest from candidates
-    minval = len(table[0])
+    minval = len(tabledraft[0])
     finalcandidate = []
     for candidate in candidates:
-      test = getlatest(table, candidate)
+      test = getlatest(tabledraft, candidate)
       if minval < test: continue
       elif minval > test:
         finalcandidate.clear()
@@ -228,15 +227,17 @@ def maketable1(workers, dutytypes, calen):
         minval = test
       else: finalcandidate.append(candidate)
 
-    table[finalcandidate[0],col] = 1
+    tabledraft[finalcandidate[0],col] = 1
 
-    return table
+    return tabledraft
 
   #iterate through columns of table, allot worker, and render final table
-  table = inittable
+  table = np.zeros((row, col), dtype = np.int8)
   for itercol in range(col):
     table = allotworker(table, itercol)
 
+  return table
+'''
   def schedulelog(table):
     log = {}
     for w in workers:
@@ -256,45 +257,113 @@ def maketable1(workers, dutytypes, calen):
       print(w, ':', log[w])
 
   schedulelog(table)
-
-  return table
+'''
 
 def maketable2(workers, dutytypes, calen):
-
   #tables by duty
   tables = []
-  
+
   row = len(workers)
   col = monthrange
   #initialize table for alloting workers
   for d in dutytypes:
     tables.append(np.zeros((row, col), dtype = np.int8))
+
+  def maketable2draft(workers, calen, pretable):
+
+    dayanddutytype = np.ones((monthrange, 1))
+
+    #match workers and column
+    wmatch = {}
+    for i in range(len(workers)):
+      wmatch[i] = workers[i]
+      wmatch[workers[i]] = i
+
   
-  dayanddutytype = np.ones((monthrange, 1))
+    #generate weightstate of each column(worker) of table
+    def genweightstate(table):
+      weightstate = np.matmul(table, dayanddutytype)
 
-  #match workers and column
-  wmatch = {}
-  for i in range(len(workers)):
-    wmatch[i] = workers[i]
-    wmatch[workers[i]] = i
+      return weightstate
 
-  #match dutytype and index(column)
-  dmatch = {}
-  for i in range(len(dutytypes)):
-    dmatch[i] = dutytypes[i]
-    dmatch[dutytypes[i]] = i
+    #return column(worker) of minimum weight sum
+    def getmins(weightstate):
+      col = 0
+      result = []
+      value = -1
+      for r in range(len(weightstate)):
+        if value == -1:
+          value = weightstate[r, col]
+          result.append(r)
+        else:
+          if value < weightstate[r, col] : continue
+          elif value > weightstate[r, col]:
+            result.clear()
+            result.append(r)
+            value = weightstate[r, col]
+          else: result.append(r)
 
-  #generate weightstate of each column(worker) of table
-  def genweightstate(table):
-    weightstate = np.matmul(table, dayanddutytype)
+      return result
 
-    return weightstate
+    #return latest day the work is done
+    def getlatest(table, row):
+      for col in reversed(range(monthrange)):
+        if table[row,col] == 1: return col
+      else: return -1
+
+    #allot worker to table of column
+    def allotworker(tabledraft, col):
+      #get weightstate of table; weightstate is a indicater for
+      #checking the amount of work done to date by each worker
+      weightstate = genweightstate(tabledraft)
+
+      #rows(workers) that are not excluded by dayoffs
+      availablerows = len(weightstate)
+
+      #concern dayoffs : set data value of the dayoff worker(row) to 128(large)
+      for w in dayoffs[col+1]:
+        r = wmatch[w]
+        for c in range(len(weightstate[r])):
+          weightstate[r, c] = 128
+          availablerows -= 1
+
+      # exclude previous worker row from weightstate if rows are more than one
+      if availablerows > 1:
+        previousworker = -1
+        for r in range(len(tabledraft)):
+          if tabledraft[r, col-1] == 1:
+            previousworker = r
+            break
+
+        for c in range(len(weightstate[previousworker])):
+          weightstate[previousworker, c] = 128
 
 
+      #get final candadites from weightstate by picking worker who has done minimum work
+      candidates = getmins(weightstate)
 
+      #pick one worker which the day of latest work is farthest from candidates
+      minval = len(tabledraft[0])
+      finalcandidate = []
+      for candidate in candidates:
+        test = getlatest(tabledraft, candidate)
+        if minval < test: continue
+        elif minval > test:
+          finalcandidate.clear()
+          finalcandidate.append(candidate)
+          minval = test
+        else: finalcandidate.append(candidate)
 
+      tabledraft[finalcandidate[0],col] = 1
 
+      return tabledraft
 
+    #iterate through columns of table, allot worker, and render final table
+    table = np.zeros((row, col), dtype = np.int8)
+    for itercol in range(col):
+      table = allotworker(table, itercol)
+
+    return table
 
 
 #dutytypes for op
