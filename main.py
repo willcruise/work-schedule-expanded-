@@ -4,7 +4,7 @@ import datetime
 
 
 #get year and month of the making schedule
-print("Enter year and month: year-month ex)2024-3")
+print("Enter year and month:")
 yearmonth = input()
 
 #get monthrange and first day of week of the month
@@ -15,7 +15,7 @@ dayofweek = datetime_date.weekday()
 monthrange = calendar.monthrange(int(datelist[0]), int(datelist[1]))[1]
 
 #get holidays
-print("Enter the holidays: day1, day2, ... ex)4,5,6,15,29")
+print("Enter the holidays:")
 holidaysinput = input()
 holidaysinput = holidaysinput.replace(" ","").split(",")
 holidays = []
@@ -23,11 +23,8 @@ for i in holidaysinput:
   if i != '':
     holidays.append(int(i))
 
-#dutytypes
-dutytypes = ['평야', '금야', '토주야', '일주야']
-
 # make calendar
-def makecalen(dayofweek, monthrange):
+def makecalen(dayofweek, monthrange, holidays):
   calen = {}
   #set initial dutytypes regarding to day of week
   for i in range(1, monthrange + 1):
@@ -58,35 +55,45 @@ def makecalen(dayofweek, monthrange):
       dayofweek += 1
     else : dayofweek = 0
 
+  for i in holidays:
+    calen[i][0] = 5
+
+  yesteroff = False
+  for i in calen:
+    if calen[i][0] == 5 or calen[i][0] == 6:
+      if yesteroff == True: calen[i][0] = 6
+      yesteroff = True
+    else: yesteroff = False
+
   return calen
 
-calen = makecalen(dayofweek, monthrange)
+calen = makecalen(dayofweek, monthrange, holidays)
 
 
 #get workers
-print("Enter the workers for guardroom: name1, name2, ...")
+print("Enter the workers for guardroom:")
 workersguard = input()
 workersguard = workersguard.replace(" ","").split(",")
 
-print("Enter the workers for operators: name1, name2, ...")
+print("Enter the workers for operators: ")
 workersop = input()
 workersop = workersop.replace(" ","").split(",")
 
-print("Enter the workers for cq: name1, name2, ...")
+print("Enter the workers for cq: ")
 workerscq = input()
 workerscq = workerscq.replace(" ","").split(",")
 
-print("Enter the workers for vigil: name1, name2, ...")
+print("Enter the workers for vigil: ")
 workersvigil = input()
 workersvigil = workersvigil.replace(" ","").split(",")
 
-print("Enter the workers for runner: name1, name2, ...")
+print("Enter the workers for runner: ")
 workersguard = input()
 workersguard = workersguard.replace(" ","").split(",")
 
 
 #get dayoffs
-print("Enter the dayoffs of workers; name1: day1 ~ day2, day3, name2: ...")
+print("Enter the dayoffs of workers; name1:")
 dayoffs = input()
 
 #process the dayoff string to necessary form
@@ -128,6 +135,8 @@ def processdayoff(dayoffs):
 dayoffs = processdayoff(dayoffs)
 
 # constants: monthrange, holidays, dutytypes, weights, row, col
+
+#for op and cq : 2dimensional table
 def maketable1(workers, dutytypes, calen):
 
   #initialize table for alloting workers
@@ -258,7 +267,7 @@ def maketable1(workers, dutytypes, calen):
 
   schedulelog(table)
 '''
-
+#for guardroom - 3dimensional table
 def maketable2(workers, dutytypes, calen):
   #tables by duty
   tables = []
@@ -269,7 +278,7 @@ def maketable2(workers, dutytypes, calen):
   for d in dutytypes:
     tables.append(np.zeros((row, col), dtype = np.int8))
 
-  def maketable2draft(workers, calen, pretable):
+  def maketable2draft(workers, pretablenum = np.zeros((row, col), dtype = np.int8)):
 
     dayanddutytype = np.ones((monthrange, 1))
 
@@ -279,7 +288,7 @@ def maketable2(workers, dutytypes, calen):
       wmatch[i] = workers[i]
       wmatch[workers[i]] = i
 
-  
+
     #generate weightstate of each column(worker) of table
     def genweightstate(table):
       weightstate = np.matmul(table, dayanddutytype)
@@ -315,6 +324,7 @@ def maketable2(workers, dutytypes, calen):
     def allotworker(tabledraft, col):
       #get weightstate of table; weightstate is a indicater for
       #checking the amount of work done to date by each worker
+  
       weightstate = genweightstate(tabledraft)
 
       #rows(workers) that are not excluded by dayoffs
@@ -326,6 +336,15 @@ def maketable2(workers, dutytypes, calen):
         for c in range(len(weightstate[r])):
           weightstate[r, c] = 128
           availablerows -= 1
+
+      #concern already alloted worker from previously iterated table
+      preonerow = -1
+      for r in range(len(tables[pretablenum])):
+        if tables[pretablenum][r,col] == 1:
+          preonerow = r
+          break
+      if preonerow != -1:
+        weightstate[preonerow, col] = 128
 
       # exclude previous worker row from weightstate if rows are more than one
       if availablerows > 1:
@@ -361,9 +380,18 @@ def maketable2(workers, dutytypes, calen):
     #iterate through columns of table, allot worker, and render final table
     table = np.zeros((row, col), dtype = np.int8)
     for itercol in range(col):
-      table = allotworker(table, itercol)
+       if calen[itercol][1] != 5 and calen[itercol][1] != 6:
+        table = allotworker(table, itercol)
 
     return table
+
+  for table in range(len(tables)):
+    if table != 0:
+      tables[table] = maketable2draft(workers, tables[table - 1])
+    else:
+      tables[table] = maketable2draft(workers)
+
+  return tables
 
 
 #dutytypes for op
@@ -400,16 +428,6 @@ tableop = maketable1(workersop, dutytypesop, calen)
 #dutytypes for cq
 dutytypescq = ['평당', '금당', '토당', '일당']
 def modifycalcq(calendraft, dutytypes):
-  for i in holidays:
-    calendraft[i][0] = 5
-
-  yesteroff = False
-  for i in calendraft:
-    if calendraft[i][0] == 5 or calendraft[i][0] == 6:
-      if yesteroff == True: calendraft[i][0] = 6
-      yesteroff = True
-    else: yesteroff = False
-
 
   for i in calendraft:
     if  calendraft[i][0] <= 3:
@@ -427,5 +445,9 @@ calencq = modifycalcq(calen, dutytypescq)
 #table for operators
 tablecq = maketable1(workerscq, dutytypescq, calen)
 
+#dutytypes for guardroom
+dutytypesgr = ['07', '08', '10']
+tablegr = maketable2(workersguard, dutytypesgr, calen)
+print(tablegr)
 
 
